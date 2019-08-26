@@ -1,0 +1,11 @@
+opam-version: "2.0"
+version: "0.1"
+synopsis: "Selinger's quantum lambda calculus interpreter"
+maintainer: "suibaka <suibaka@gmail.com>"
+authors: "suibaka <suibaka@gmail.com>"
+homepage: "https://github.com/Suikaba/SelingerQuantumLambdaCalculus"
+depends: [ "dune" "menhir" "core" "ounit" ]
+bulid: [
+  ["dune" "build"]
+]
+build-test: ["dune" "runtest"]

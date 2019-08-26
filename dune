@@ -1,0 +1,7 @@
+(executables
+  (names main)
+  (libraries
+    qlambda
+  )
+  (public_names qlambda)
+)
