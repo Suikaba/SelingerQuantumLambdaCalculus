@@ -4,3 +4,9 @@
     core
   )
 )
+
+(env
+  (dev
+    (flags
+      (:standard -warn-error -A -w -39)
+    )))

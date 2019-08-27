@@ -10,9 +10,9 @@ let rec lookup env x = match env with
   | (id, v) :: _ when x = id -> v
   | _ :: tl -> lookup tl x
 
-let rec map f = function
+let rec map env f = match env with
     [] -> []
-  | (id, v) :: tl -> (id, f v) :: map f tl
+  | (id, v) :: tl -> (id, f v) :: map tl f
 
 let rec fold_right f env a = match env with
     [] -> a

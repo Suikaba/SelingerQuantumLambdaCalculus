@@ -8,4 +8,5 @@ bin: [
 ]
 doc: [
   "_build/install/default/doc/qlambda/LICENSE"
+  "_build/install/default/doc/qlambda/README.md"
 ]
