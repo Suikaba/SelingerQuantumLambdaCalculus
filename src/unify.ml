@@ -14,8 +14,7 @@ let rec freevar_ty = function
   | ITySingleton -> IS.empty
   | ITyFun (ty1, ty2)
   | ITyProd (ty1, ty2)
-  | ITySum (ty1, ty2)
-  | ITyPair (ty1, ty2) -> IS.union (freevar_ty ty1) (freevar_ty ty2)
+  | ITySum (ty1, ty2) -> IS.union (freevar_ty ty1) (freevar_ty ty2)
 
 
 let rec unify subst eqs =
@@ -24,8 +23,7 @@ let rec unify subst eqs =
         if IM.mem s v then s else IM.add_exn s ~key:v ~data:(UF.create (ITyVar v))
     | ITyFun (ty1, ty2)
     | ITyProd (ty1, ty2)
-    | ITySum (ty1, ty2)
-    | ITyPair (ty1, ty2) ->
+    | ITySum (ty1, ty2) ->
         extend (extend s ty1) ty2
     | _ -> s)
   in
@@ -46,8 +44,7 @@ let rec unify subst eqs =
             unify subst rest
         | ITyFun (ty1, ty2), ITyFun (ty3, ty4)
         | ITyProd (ty1, ty2), ITyProd (ty3, ty4)
-        | ITySum (ty1, ty2), ITySum (ty3, ty4)
-        | ITyPair (ty1, ty2), ITyPair (ty3, ty4) ->
+        | ITySum (ty1, ty2), ITySum (ty3, ty4) ->
             unify subst ((ty1, ty3) :: (ty2, ty4) :: rest)
         | _ -> raise UnifyTypeError)
       in
@@ -71,14 +68,19 @@ let empty_subst = IM.empty
 let rec subst_type s = function
     ITyVar id ->
       (match Map.find s id with
-         Some t -> UF.get t
+         Some t ->
+           let nty = UF.get t in
+           if nty = ITyVar id then ITyVar id
+           else begin
+             UF.set t nty;
+             subst_type s nty
+           end
        | None -> ITyVar id)
   | ITyQbit -> ITyQbit
   | ITySingleton -> ITySingleton
-  | ITyFun (ty1, ty2) -> ITyFun (subst_type s ty1, subst_type s ty2)
+  | ITyFun (ty1, ty2) ->ITyFun (subst_type s ty1, subst_type s ty2)
   | ITyProd (ty1, ty2) -> ITyProd (subst_type s ty1, subst_type s ty2)
   | ITySum (ty1, ty2) -> ITySum (subst_type s ty1, subst_type s ty2)
-  | ITyPair (ty1, ty2) -> ITyPair (subst_type s ty1, subst_type s ty2)
 
 let rec merge_subst s1 s2 =
   Map.fold s1 ~init:s2
@@ -91,3 +93,6 @@ let rec merge_subst s1 s2 =
             unify s [(ty1, ty2)]
           end else
             Map.add_exn s ~key:v ~data:t2)
+
+let print_subst s =
+  Map.iteri s ~f:(fun ~key:k ~data:t -> Printf.printf "(%d, %s), " k (string_of_itype (UF.get t)))
