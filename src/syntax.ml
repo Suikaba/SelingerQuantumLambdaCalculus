@@ -34,16 +34,6 @@ type value =
  *)
 type tyvar = int
 
-type qtype =
-    QTyQbit
-  | QTySingleton       (* T *)
-  | QTyExp of qtype       (* !A *)
-  | QTyFun of qtype * qtype
-  | QTyProd of qtype * qtype (* A * B *)
-  | QTySum of qtype * qtype  (* disjoint union: A + B *)
-
-let qtybit = QTySum (QTySingleton, QTySingleton)
-
 let fresh_tyvar =
   let counter = ref 0 in
   let body () = counter := !counter + 1; !counter in
@@ -57,9 +47,20 @@ type itype =
   | ITyFun of itype * itype
   | ITyProd of itype * itype
   | ITySum of itype * itype
-  | ITyPair of itype * itype
 
 let itybit = ITySum (ITySingleton, ITySingleton)
+
+(* decorated types *)
+type qual =
+    Linear
+  | NonLinear
+  | QVar of int
+type dtype =
+    TyQBit
+  | TySingleton of qual
+  | TyFun of qual * dtype * dtype
+  | TyProd of qual * dtype * dtype
+  | TySum of qual * dtype * dtype
 
 (* printing *)
 let string_of_const = function
@@ -110,8 +111,7 @@ let rec string_of_itype ty =
   let need_paren = (function
     | ITyFun _
     | ITyProd _
-    | ITySum _
-    | ITyPair _ -> true
+    | ITySum _ -> true
     | _ -> false) in
   match ty with
     ITyQbit -> "qbit"
@@ -132,4 +132,36 @@ let rec string_of_itype ty =
         Printf.sprintf "(%s) + %s" (string_of_itype ty1) (string_of_itype ty2)
       else
         Printf.sprintf "%s + %s" (string_of_itype ty1) (string_of_itype ty2)
-  | ITyPair (ty1, ty2) -> Printf.sprintf "<%s, %s>" (string_of_itype ty1) (string_of_itype ty2)
+
+
+let rec string_of_dtype ty =
+  let need_paren = (function
+    | TyFun _
+    | TyProd _
+    | TySum _ -> true
+    | _ -> false) in
+  let add_qual q s = (match q with
+      NonLinear -> "!(" ^ s ^ ")"
+    | Linear -> s
+    | QVar _ -> "?(" ^ s ^ ")") in
+  match ty with
+    TyQBit -> "qbit"
+  | TySingleton q -> (match q with
+        NonLinear -> "!T"
+      | Linear -> "T"
+      | QVar _ -> "?T")
+  | TyFun (q, ty1, ty2) ->
+      if need_paren ty1 then
+        add_qual q (Printf.sprintf "(%s) -> %s" (string_of_dtype ty1) (string_of_dtype ty2))
+      else
+        add_qual q (Printf.sprintf "%s -> %s" (string_of_dtype ty1) (string_of_dtype ty2))
+  | TyProd (q, ty1, ty2) ->
+      if need_paren ty1 then
+        add_qual q (Printf.sprintf "(%s) * %s" (string_of_dtype ty1) (string_of_dtype ty2))
+      else
+        add_qual q (Printf.sprintf "%s * %s" (string_of_dtype ty1) (string_of_dtype ty2))
+  | TySum (q, ty1, ty2) ->
+      if need_paren ty1 then
+        add_qual q (Printf.sprintf "(%s) + %s" (string_of_dtype ty1) (string_of_dtype ty2))
+      else
+        add_qual q (Printf.sprintf "%s + %s" (string_of_dtype ty1) (string_of_dtype ty2))

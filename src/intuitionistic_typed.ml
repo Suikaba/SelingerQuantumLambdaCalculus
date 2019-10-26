@@ -1,3 +1,4 @@
+open Core
 open Syntax
 open Unify
 
@@ -27,7 +28,7 @@ let rec string_of_iterm = function
   | ITuple0 ty -> Printf.sprintf "(* : %s)" (string_of_itype ty)
   | IAbst (id, t, ty) -> Printf.sprintf "((lam %s . %s) : %s)" id (string_of_iterm t) (string_of_itype ty)
   | IApp (t1, t2, ty) -> Printf.sprintf "(%s %s : %s)" (string_of_iterm t1) (string_of_iterm t2) (string_of_itype ty)
-  | IPair (t1, t2, ty) -> Printf.sprintf "(<%s %s> : %s)" (string_of_iterm t1) (string_of_iterm t2) (string_of_itype ty)
+  | IPair (t1, t2, ty) -> Printf.sprintf "(<%s, %s> : %s)" (string_of_iterm t1) (string_of_iterm t2) (string_of_itype ty)
   | ILet (x, y, t1, t2, ty) ->
       Printf.sprintf "(let <%s, %s> = %s in %s) : %s" x y (string_of_iterm t1) (string_of_iterm t2) (string_of_itype ty)
   | IInjL (t, ty) ->
@@ -73,7 +74,7 @@ let rec ity_infer tyenv = function
   | Pair (t1, t2) ->
       let s1, ty1, it1 = ity_infer tyenv t1 in
       let s2, ty2, it2 = ity_infer tyenv t2 in
-      merge_subst s1 s2, ITyPair (ty1, ty2), IPair (it1, it2, ITyPair (ty1, ty2))
+      merge_subst s1 s2, ITyProd (ty1, ty2), IPair (it1, it2, ITyProd (ty1, ty2))
   | Let (x, y, t1, t2) ->
       let s1, ty1, it1 = ity_infer tyenv t1 in
       (match ty1 with
@@ -82,9 +83,9 @@ let rec ity_infer tyenv = function
            let snd = ITyVar (fresh_tyvar ()) in
            let tyenv = Environment.extend (Environment.extend tyenv x fst) y snd in
            let s2, ty2, it2 = ity_infer tyenv t2 in
-           let s = unify (merge_subst s1 s2) [ITyVar a, ITyPair (fst, snd)] in
+           let s = unify (merge_subst s1 s2) [ITyVar a, ITyProd (fst, snd)] in
            s, subst_type s ty2, ILet (x, y, it1, it2, subst_type s ty2)
-       | ITyPair (ty1', ty2') ->
+       | ITyProd (ty1', ty2') ->
            let tyenv = Environment.extend tyenv x ty1' in
            let tyenv = Environment.extend tyenv y ty2' in
            let s2, ty2, it2 = ity_infer tyenv t2 in
@@ -127,17 +128,25 @@ let rec ity_infer tyenv = function
 (* create intuitionistic typed term *)
 let ity_term tyenv t =
   let s, _, it = ity_infer tyenv t in
+  let rec fix_with_singleton = (function
+    | ITyVar _ -> ITySingleton (* replace with singleton *)
+    | ITyQbit -> ITyQbit
+    | ITySingleton -> ITySingleton
+    | ITyFun (ty1, ty2) -> ITyFun (fix_with_singleton ty1, fix_with_singleton ty2)
+    | ITyProd (ty1, ty2) -> ITyProd (fix_with_singleton ty1, fix_with_singleton ty2)
+    | ITySum (ty1, ty2) -> ITySum (fix_with_singleton ty1, fix_with_singleton ty2))
+  in
   let rec correct_type = (function
-    | IConst (c, ty) -> IConst (c, subst_type s ty)
-    | IVar (id, ty) -> IVar (id, subst_type s ty)
+    | IConst (c, ty) -> IConst (c, fix_with_singleton (subst_type s ty))
+    | IVar (id, ty) -> IVar (id, fix_with_singleton (subst_type s ty))
     | ITuple0 ty -> ITuple0 ty
-    | IAbst (id, t, ty) -> IAbst (id, correct_type t, subst_type s ty)
-    | IApp (t1, t2, ty) -> IApp (correct_type t1, correct_type t2, subst_type s ty)
-    | IPair (t1, t2, ty) -> IPair (correct_type t1, correct_type t2, subst_type s ty)
-    | ILet (x, y, t1, t2, ty) -> ILet (x, y, correct_type t1, correct_type t2, subst_type s ty)
-    | IInjL (t, ty) -> IInjL (correct_type t, subst_type s ty)
-    | IInjR (t, ty) -> IInjR (correct_type t, subst_type s ty)
-    | IMatch (t1, (x, t2), (y, t3), ty) -> IMatch (correct_type t1, (x, correct_type t2), (y, correct_type t3), subst_type s ty)
-    | ILetRec (id, para, t1, t2, ty) -> ILetRec (id, para, correct_type t1, correct_type t2, subst_type s ty))
+    | IAbst (id, t, ty) -> IAbst (id, correct_type t, fix_with_singleton (subst_type s ty))
+    | IApp (t1, t2, ty) -> IApp (correct_type t1, correct_type t2, fix_with_singleton (subst_type s ty))
+    | IPair (t1, t2, ty) -> IPair (correct_type t1, correct_type t2, fix_with_singleton (subst_type s ty))
+    | ILet (x, y, t1, t2, ty) -> ILet (x, y, correct_type t1, correct_type t2, fix_with_singleton (subst_type s ty))
+    | IInjL (t, ty) -> IInjL (correct_type t, fix_with_singleton (subst_type s ty))
+    | IInjR (t, ty) -> IInjR (correct_type t, fix_with_singleton (subst_type s ty))
+    | IMatch (t1, (x, t2), (y, t3), ty) -> IMatch (correct_type t1, (x, correct_type t2), (y, correct_type t3), fix_with_singleton (subst_type s ty))
+    | ILetRec (id, para, t1, t2, ty) -> ILetRec (id, para, correct_type t1, correct_type t2, fix_with_singleton (subst_type s ty)))
   in
   correct_type it

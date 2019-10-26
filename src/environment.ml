@@ -1,3 +1,5 @@
+open Core
+
 type ('a, 'b) t = ('a * 'b) list
 
 exception Not_bound
@@ -18,3 +20,4 @@ let rec fold_right f env a = match env with
     [] -> a
   | (_, v) :: tl -> f v (fold_right f tl a)
 
+let domain env = List.map env ~f:(fun (id, _) -> id)
