@@ -318,13 +318,11 @@ let rec dterm_of_iterm qenv = function
       let s2, rels2, dt2 = dterm_of_iterm qenv t2 in
       let ty1 = get_type dt1 in
       let ty2 = get_type dt2 in
-(*Printf.printf "Enter IApp : (%s %s)\n" (string_of_dterm dt1) (string_of_dterm dt2); *)
       (match ty1 with
          TyFun (_, tyarg, tybody) ->
            let s = unify (merge_subst s1 s2) [tyarg, ty2] in
            let s = fix_qual s (get_qual ty1) Linear in
            let s = fix_nonlinear_ids s qenv t1 t2 in
-(*Printf.printf "Leave IApp : (%s %s)\n" (string_of_dterm dt1) (string_of_dterm dt2); *)
            s, rels1 @ rels2, DApp (dt1, dt2, subst_qual_ty s tybody)
        | _ -> failwith "Fatal error")
   | IPair (t1, t2, _) ->

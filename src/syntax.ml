@@ -20,7 +20,7 @@ type term =
   | LetRec of id * id * term * term
 
 type value =
-  | Qbit of float * float  (* basis |0>, |1> *)
+  | Qbit of int (* quantum closure label *)
   | VConst of constant
   | VPair of value * value
   | VTuple0
@@ -98,7 +98,7 @@ let rec string_of_term = function
       Printf.sprintf "let rec %s %s = %s in %s" id para (string_of_term t1) (string_of_term t2)
 
 let rec string_of_value = function
-    Qbit (alpha, beta) -> Printf.sprintf "QBit<%f, %f>" alpha beta
+    Qbit i -> Printf.sprintf "|q%d>" i
   | VConst c -> string_of_const c
   | VPair (v1, v2) -> Printf.sprintf "(%s , %s)" (string_of_value v1) (string_of_value v2)
   | VTuple0 -> "*"

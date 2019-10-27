@@ -1,63 +1,113 @@
 open Core
 open Syntax
 
+type vector = float Array.t
+type quantumClosure = vector * int * term (* quantum closure has L as length but not list *)
+
 exception ExpectedPair
 exception ExpectedConstOrAbst
 exception ApplyConstError
 exception EvalMatchingError
 exception NotImplemented
 
-let apply_const c v = match c, v with
-  | New, (VInjR VTuple0) -> Qbit (1.0, 0.0) (* injr * -> |0> *)
-  | New, (VInjL VTuple0) -> Qbit (0.0, 1.0) (* injl * -> |1> *)
-  | Meas, Qbit (alpha, beta) ->
-      assert (Float.abs (1.0 -. alpha *. alpha -. beta *. beta) <=. 0.000000001);
-      let r = Random.float 1.0 in
-      if alpha *. alpha <=. r then VInjR (VTuple0)
-      else                VInjL (VTuple0)
-  | H, Qbit (a, b) ->
-      let na = (a +. b) /. Float.sqrt (2.) in
-      let nb = (a -. b) /. Float.sqrt (2.) in
-      Qbit (na, nb)
-  | X, _ | Y, _ | Z, _ -> raise NotImplemented
+
+let extend_states states alpha beta =
+  if Array.length states = 0 then
+    Array.of_list [alpha; beta]
+  else
+    let fst = Array.map states ~f:(fun x -> x *. alpha) in
+    let snd = Array.map states ~f:(fun x -> x *. beta) in
+    Array.append fst snd
+
+let apply_const c (states, qs, v) = match c, v with
+  | New, (VInjR VTuple0) ->
+      let states = extend_states states 1.0 0.0 in
+      (states, qs + 1, Qbit qs)
+  | New, (VInjL VTuple0) ->
+      let states = extend_states states 0.0 1.0 in
+      (states, qs + 1, Qbit qs)
+  | Meas, Qbit i ->
+      let alpha =
+        Array.foldi ~init:0. states
+          ~f:(fun idx a b ->
+                if idx land (1 lsl i) = 0 then a +. b
+                else a) in
+      let r = Random.float 1. in
+      if alpha *. alpha <=. r then begin
+        let states =
+          Array.mapi states
+            ~f:(fun idx a ->
+                  if idx land (1 lsl i) = 0 then a /. alpha
+                  else 0.)
+        in
+        states, qs, VInjR VTuple0
+      end else begin
+        let beta = 1. -. alpha in
+        let states =
+          Array.mapi states
+            ~f:(fun idx a ->
+                  if idx land (1 lsl i) = 0 then a /. beta
+                  else 0.)
+        in
+        states, qs, VInjL VTuple0
+      end
+  | H, Qbit i ->
+      let states =
+        Array.mapi states
+          ~f:(fun idx a ->
+                let idx' = idx lxor (1 lsl i) in
+                if idx land (1 lsl i) = 0 then
+                  let b = Array.get states idx' in
+                  (a +. b) /. Float.sqrt(2.)
+                else
+                  let b = Array.get states idx' in
+                  (b -. a) /. Float.sqrt(2.))
+      in states, qs, Qbit i
   | _ -> raise ApplyConstError
 
-let rec eval_term env = function
-    Const c -> VConst c
-  | Var id -> Environment.lookup env id
-  | Abst (id, t) -> VAbst (id, t, ref env)
+let rec eval_term env (states, qs, term) = match term with
+    Const _ -> raise NotImplemented
+  | Var id -> (states, qs, Environment.lookup env id)
+  | Tuple0 -> (states, qs, VTuple0)
+  | Abst (x, t) -> states, qs, VAbst (x, t, ref env)
   | App (t1, t2) ->
-      let v1 = eval_term env t1 in
-      let v2 = eval_term env t2 in
+      let states, qs, v2 = eval_term env (states, qs, t2) in
+      let states, qs, v1 = eval_term env (states, qs, t1) in
       (match v1 with
-         VConst c -> apply_const c v2
-       | VAbst (id, body, env) ->
-           let env = Environment.extend !env id v2 in
-           eval_term env body
+         VConst c -> apply_const c (states, qs, v2)
+       | VAbst (x, body, env) ->
+           let env = Environment.extend !env x v2 in
+           eval_term env (states, qs, body)
        | _ -> raise ExpectedConstOrAbst)
-  | Pair (t1, t2) -> VPair (eval_term env t1, eval_term env t2)
-  | Tuple0 -> VTuple0
-  | InjL t -> VInjL (eval_term env t)
-  | InjR t -> VInjR (eval_term env t)
-  | Match (t, (x, t2), (y, t3)) ->
-      (match eval_term env t with
+  | Pair (t1, t2) ->
+      let states, qs, v2 = eval_term env (states, qs, t2) in
+      let states, qs, v1 = eval_term env (states, qs, t1) in
+      states, qs, VPair (v1, v2)
+  | Let (x, y, t1, t2) ->
+      let states, qs, v1 = eval_term env (states, qs, t1) in
+      (match v1 with
+         VPair (vp1, vp2) ->
+           let env = Environment.extend (Environment.extend env x vp1) y vp2 in
+           eval_term env (states, qs, t2)
+       | _ -> raise ExpectedPair)
+  | InjL t ->
+      let states, qs, v = eval_term env (states, qs, t) in
+      states, qs, VInjL v
+  | InjR t ->
+      let states, qs, v = eval_term env (states, qs, t) in
+      states, qs, VInjR v
+  | Match (t1, (x, t2), (y, t3)) ->
+      let states, qs, v1 = eval_term env (states, qs, t1) in
+      (match v1 with
          VInjL v ->
            let env = Environment.extend env x v in
-           eval_term env t2
+           eval_term env (states, qs, t2)
        | VInjR v ->
            let env = Environment.extend env y v in
-           eval_term env t3
+           eval_term env (states, qs, t3)
        | _ -> raise EvalMatchingError)
-  | Let (x, y, t1, t2) -> (* let <x, y> = M in N *)
-      (match eval_term env t1 with
-         VPair (v1, v2) ->
-           let env = Environment.extend env x v1 in
-           let env = Environment.extend env y v2 in
-           eval_term env t2
-       | _ -> raise ExpectedPair)
-  | LetRec (id, para, t1, t2) ->
+  | LetRec (id, x, t1, t2) ->
       let dummy = ref Environment.empty in
-      let env = Environment.extend env id (VAbst (para, t1, dummy)) in
+      let env = Environment.extend env id (VAbst (x, t1, dummy)) in
       dummy := env;
-      eval_term env t2
-
+      eval_term env (states, qs, t2)
