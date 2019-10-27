@@ -32,6 +32,8 @@ type dtyped_term =
   | DMatch of dtyped_term * (id * dtyped_term) * (id * dtyped_term) * dtype
   | DLetRec of id * id * dtyped_term * dtyped_term * dtype
 
+let const_strs = ["new"; "meas"; "H"]
+
 (* =============================================================================
  * Print
  *)
@@ -133,18 +135,6 @@ let get_type = function
 let extend_subst s qv =
   if Subst.mem s qv then s
   else Subst.add_exn s ~key:qv ~data:(UF.create (QVar qv))
-
-let rec qual_eqs_of_ty_eqs ty_eqs = match ty_eqs with
-    [] -> []
-  | (ty1, ty2) :: tl ->
-      match ty1, ty2 with
-        TyQBit, TyQBit -> qual_eqs_of_ty_eqs tl
-      | TySingleton v1, TySingleton v2 -> (v1, v2) :: qual_eqs_of_ty_eqs tl
-      | TyFun (v1, ty11, ty12), TyFun (v2, ty21, ty22)
-      | TySum (v1, ty11, ty12), TySum (v2, ty21, ty22)
-      | TyProd (v1, ty11, ty12), TyProd (v2, ty21, ty22) ->
-          (v1, v2) :: qual_eqs_of_ty_eqs ((ty11, ty21) :: (ty12, ty22) :: tl)
-      | _ -> failwith "qual_eqs_of_ty_eqs: fatal error"
 
 let rec unify subst eqs =
   let merge_qual q1 q2 = (match q1, q2 with
@@ -270,7 +260,7 @@ let fix_qual subst q q' =
   | _ -> raise CannotFixQual
 
 let fix_nonlinear_ids subst qenv t1 t2 =
-  SS.fold ~init:subst (SS.inter (free_variables t1) (free_variables t2))
+  SS.fold ~init:subst (SS.diff (SS.inter (free_variables t1) (free_variables t2)) (SS.of_list const_strs))
     ~f:(fun s id ->
           let q = get_qual (Environment.lookup qenv id) in
           fix_qual s q NonLinear)
@@ -409,7 +399,7 @@ let rec subst_linear_term = function
   | DAbst (id, t, ty) -> DAbst (id, subst_linear_term t, subst_linear_ty ty)
   | DApp (t1, t2, ty) -> DApp (subst_linear_term t1, subst_linear_term t2, subst_linear_ty ty)
   | DPair (t1, t2, ty) -> DPair (subst_linear_term t1, subst_linear_term t2, subst_linear_ty ty)
-  | DLet (id1, id2, t1, t2, ty) -> raise NotImplemented
+  | DLet (x, y, t1, t2, ty) -> DLet (x, y, subst_linear_term t1, subst_linear_term t2, subst_linear_ty ty)
   | DInjL (t, ty) -> DInjL (subst_linear_term t, subst_linear_ty ty)
   | DInjR (t, ty) -> DInjR (subst_linear_term t, subst_linear_ty ty)
   | DMatch (t1, (id2, t2), (id3, t3), ty) -> raise NotImplemented

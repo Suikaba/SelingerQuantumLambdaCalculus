@@ -1,0 +1,10 @@
+
+let f = fun (q1, q2) -> (q1, q2) in
+
+let Deutsch Uf =
+  let tens f g = fun (x, y) -> (f x, g y) in
+  let (x, y) = (tens H (fun x -> x)) (Uf (H (new 0), H (new 1))) in
+  meas x
+
+in Deutsch f
+;;
