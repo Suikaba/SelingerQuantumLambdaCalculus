@@ -373,7 +373,7 @@ let rec dterm_of_iterm qenv = function
 
 let rec check_abst_qual subst qenv t = match t with
   | DAbst (id, body, TyFun (q, tyarg, _)) ->
-      let fvs = SS.diff (free_variables_d body) (SS.singleton id) in
+      let fvs = SS.diff (free_variables_d body) (SS.of_list ["new"; "meas"; "H"; id]) in
       let qfvs = SS.to_list fvs |> List.map ~f:(fun id -> Environment.lookup qenv id) in
       let have_lin = List.exists qfvs ~f:(fun q -> q = Linear) in
       let subst = if have_lin then fix_qual subst q Linear else subst in
@@ -418,8 +418,14 @@ let rec subst_linear_term = function
   | DLetRec (id1, id2, t1, t2, ty) -> raise NotImplemented
 
 
+let bit_ty = TySum (Linear, TySingleton Linear, TySingleton Linear)
+let new_ty = TyFun (Linear, bit_ty, TyQBit)
+let meas_ty = TyFun (Linear, TyQBit, bit_ty)
+let h_ty = TyFun (Linear, TyQBit, TyQBit)
+let initial_qenv = Environment.extend (Environment.extend (Environment.extend Environment.empty "new" new_ty) "meas" meas_ty) "H" h_ty
+
 let ty_dterm iterm =
-  let s, rels, dterm = dterm_of_iterm Environment.empty iterm in
+  let s, rels, dterm = dterm_of_iterm initial_qenv iterm in
   let s = check_abst_qual s Environment.empty dterm in
   let s = subtyping s rels in
   subst_linear_term (subst_qual_term s dterm)

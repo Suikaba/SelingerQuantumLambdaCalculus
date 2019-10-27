@@ -3,22 +3,14 @@ open Qlambda
 open Qlambda.Cui
 open Qlambda.Syntax
 
-let initial_env = Environment.empty
-let initial_tyenv = Environment.empty
+let bit_ty = ITySum (ITySingleton, ITySingleton)
+let new_ty = ITyFun (bit_ty, ITyQbit)
+let meas_ty = ITyFun (ITyQbit, bit_ty)
+let h_ty = ITyFun (ITyQbit, ITyQbit)
+
+let initial_env = Environment.extend (Environment.extend (Environment.extend Environment.empty "new" (VConst New)) "meas" (VConst Meas)) "H" (VConst H)
+let initial_tyenv = Environment.extend (Environment.extend (Environment.extend Environment.empty "new" new_ty) "meas" meas_ty) "H" h_ty
 
 let () =
   Random.self_init ();
-  let coin = Abst ("z", App (Const Meas, App (Const H, (App (Const New, InjR Tuple0))))) in
-  read_term_eval initial_env initial_tyenv coin;
-  let use_coin = App (coin, InjR Tuple0) in
-  read_term_eval initial_env initial_tyenv use_coin;
-  let test = Abst ("x", App (Const Meas, Var "x")) in
-  read_term_eval initial_env initial_tyenv test;
-
-  let t = Abst ("x", Pair (Var "x", Var "x")) in
-  read_term_eval initial_env initial_tyenv t;
-
-  let f = Abst ("f", App (Var "f", InjR Tuple0)) in
-  let f2 = Abst ("z", App (Const Meas, Var "q")) in
-  let t = Abst ("q", App (f, f2)) in
-  read_term_eval initial_env initial_tyenv t;
+  read_eval_print initial_env initial_tyenv
