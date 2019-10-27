@@ -19,3 +19,13 @@ let read_eval_print env tyenv =
   (* evaluation *)
   let v = eval_term env t in
   Printf.printf "\nvalue = %s\n\n" (string_of_value v)
+
+
+(* for test *)
+let read_string_eval str env tyenv =
+  let t = Parser.toplevel Lexer.main (Lexing.from_string str) in
+  let ityped_t = ity_term tyenv t in
+  let dtyped_t = ty_dterm ityped_t in
+  let v = eval_term env t in
+  ityped_t, dtyped_t, v
+
