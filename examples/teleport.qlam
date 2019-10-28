@@ -1,0 +1,30 @@
+
+let EPR = fun * -> cnot (H (new 0), new 0) in
+
+let BellMeasure = fun q2 -> fun q1 ->
+  let (x, y) = cnot (q1, q2) in
+  (meas (H x), meas y)
+in
+
+let U11 q = Z (X q) in
+let U10 q = X q in
+let U01 q = Z q in
+let U00 q = q in
+let U = fun q -> fun (x, y) ->
+  if x then (if y then U11 q else U10 q)
+  else (if y then U01 q else U00 q)
+in
+
+let telep =
+  let (x, y) = EPR * in
+  let f = BellMeasure x in
+  let g = U y in
+  (f, g)
+in
+
+let (alice, bob) = telep in
+let payload = X (Z (H (new 0))) in (* prepare payload (arbitary) *)
+let (c1, c0) = alice payload in (* alice sends *)
+let q = bob (c0, c1) in         (* bob receive and transform *)
+q                               (* q2 --teleport to--> q0 *)
+;;
