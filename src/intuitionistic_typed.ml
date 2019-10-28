@@ -15,7 +15,7 @@ type ityped_term =
   | IInjL of ityped_term * itype
   | IInjR of ityped_term * itype
   | IMatch of ityped_term * (id * ityped_term) * (id * ityped_term) * itype
-  | ILetRec of id * id * ityped_term * ityped_term * itype
+  | ILetRec of id * ityped_term * ityped_term * itype
 
 let fresh_tyvar =
   let counter = ref 0 in
@@ -42,9 +42,9 @@ let rec string_of_iterm = function
   | IMatch (t1, (x, t2), (y, t3), ty) ->
       Printf.sprintf "(match %s with %s -> %s | %s -> %s) : %s"
                      (string_of_iterm t1) x (string_of_iterm t2) y (string_of_iterm t3) (string_of_itype ty)
-  | ILetRec (id, para, t1, t2, ty) ->
-      Printf.sprintf "(let rec %s %s = %s in %s) : %s"
-                     id para (string_of_iterm t1) (string_of_iterm t2) (string_of_itype ty)
+  | ILetRec (f, t1, t2, ty) ->
+      Printf.sprintf "(let rec %s = %s in %s) : %s"
+                     f (string_of_iterm t1) (string_of_iterm t2) (string_of_itype ty)
 
 
 (* type inference *)
@@ -110,20 +110,16 @@ let rec ity_infer tyenv = function
                               unify s1 [ITyVar a, ITySum (xty, yty)], xty, yty
                           | _ -> raise ITypeError)
        in
-       let tyenv2 = Environment.extend tyenv x xty in
-       let s2, ty2, it2 = ity_infer tyenv2 t2 in
-       let tyenv3 = Environment.extend tyenv y yty in
-       let s3, ty3, it3 = ity_infer tyenv3 t3 in
+       let s2, ty2, it2 = ity_infer (Environment.extend tyenv x xty) t2 in
+       let s3, ty3, it3 = ity_infer (Environment.extend tyenv y yty) t3 in
        let s = unify (merge_subst s1 (merge_subst s2 s3)) [ty2, ty3] in
        s, subst_type s ty2, IMatch (it1, (x, it2), (y, it3), subst_type s ty2)
-  | LetRec (id, para, t1, t2) ->
-      let typara = ITyVar (fresh_tyvar ()) in
-      let tyf = ITyFun (typara, ITyVar (fresh_tyvar ())) in
-      let tyenv' = Environment.extend (Environment.extend tyenv id tyf) para typara in
-      let s1, _, it1 = ity_infer tyenv' t1 in
-      let s2, ty2, it2 = ity_infer (Environment.extend tyenv id tyf) t2 in
-      let s = merge_subst s1 s2 in
-      s, subst_type s ty2, ILetRec (id, para, it1, it2, subst_type s ty2)
+  | LetRec (f, t1, t2) ->
+      let tyenv = Environment.extend tyenv f (ITyVar (fresh_tyvar ())) in
+      let s1, tyf, it1 = ity_infer tyenv t1 in
+      let s2, ty2, it2 = ity_infer tyenv t2 in
+      let s = unify (merge_subst s1 s2) [tyf, Environment.lookup tyenv f] in
+      s, subst_type s ty2, ILetRec (f, it1, it2, subst_type s ty2)
 
 (* create intuitionistic typed term *)
 let ity_term tyenv t =
@@ -147,6 +143,6 @@ let ity_term tyenv t =
     | IInjL (t, ty) -> IInjL (correct_type t, fix_with_singleton (subst_type s ty))
     | IInjR (t, ty) -> IInjR (correct_type t, fix_with_singleton (subst_type s ty))
     | IMatch (t1, (x, t2), (y, t3), ty) -> IMatch (correct_type t1, (x, correct_type t2), (y, correct_type t3), fix_with_singleton (subst_type s ty))
-    | ILetRec (id, para, t1, t2, ty) -> ILetRec (id, para, correct_type t1, correct_type t2, fix_with_singleton (subst_type s ty)))
+    | ILetRec (f, t1, t2, ty) -> ILetRec (f, correct_type t1, correct_type t2, fix_with_singleton (subst_type s ty)))
   in
   correct_type it

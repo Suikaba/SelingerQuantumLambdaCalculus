@@ -30,7 +30,7 @@ type dtyped_term =
   | DInjL of dtyped_term * dtype
   | DInjR of dtyped_term * dtype
   | DMatch of dtyped_term * (id * dtyped_term) * (id * dtyped_term) * dtype
-  | DLetRec of id * id * dtyped_term * dtyped_term * dtype
+  | DLetRec of id * dtyped_term * dtyped_term * dtype
 
 let const_strs = ["new"; "meas"; "H"]
 
@@ -57,9 +57,9 @@ let rec string_of_dterm = function
   | DMatch (t1, (x, t2), (y, t3), ty) ->
       Printf.sprintf "(match %s with %s -> %s | %s -> %s) : %s"
                      (string_of_dterm t1) x (string_of_dterm t2) y (string_of_dterm t3) (string_of_dtype ty)
-  | DLetRec (id, para, t1, t2, ty) ->
-      Printf.sprintf "(let rec %s %s = %s in %s) : %s"
-                     id para (string_of_dterm t1) (string_of_dterm t2) (string_of_dtype ty)
+  | DLetRec (f, t1, t2, ty) ->
+      Printf.sprintf "(let rec %s = %s in %s) : %s"
+                     f (string_of_dterm t1) (string_of_dterm t2) (string_of_dtype ty)
 
 
 let rec free_variables = function
@@ -79,10 +79,8 @@ let rec free_variables = function
       let s2 = SS.remove (free_variables t2) x in
       let s3 = SS.remove (free_variables t3) y in
       SS.union (SS.union s1 s2) s3
-  | ILetRec (id, para, t1, t2, _) ->
-      let s1 = SS.remove (SS.remove (free_variables t1) id) para in
-      let s2 = SS.remove (free_variables t2) id in
-      SS.union s1 s2
+  | ILetRec (f, t1, t2, _) ->
+      SS.union (SS.remove (free_variables t1) f) (SS.remove (free_variables t2) f)
 
 let rec free_variables_d = function
   | DConst _ -> SS.empty
@@ -101,10 +99,8 @@ let rec free_variables_d = function
       let s2 = SS.remove (free_variables_d t2) x in
       let s3 = SS.remove (free_variables_d t3) y in
       SS.union (SS.union s1 s2) s3
-  | DLetRec (id, para, t1, t2, _) ->
-      let s1 = SS.remove (SS.remove (free_variables_d t1) id) para in
-      let s2 = SS.remove (free_variables_d t2) id in
-      SS.union s1 s2
+  | DLetRec (f, t1, t2, _) ->
+      SS.union (SS.remove (free_variables_d t1) f) (SS.remove (free_variables_d t2) f)
 
 
 let get_qual = function
@@ -125,7 +121,7 @@ let get_type = function
   | DInjL (_, ty)
   | DInjR (_, ty)
   | DMatch (_, _, _, ty)
-  | DLetRec (_, _, _, _, ty) -> ty
+  | DLetRec (_, _, _, ty) -> ty
 
 (* =============================================================================
  * Unification
@@ -213,8 +209,10 @@ let rec subst_qual_term subst t = match t with
   | DLet (id1, id2, t1, t2, ty) -> DLet (id1, id2, subst_qual_term subst t1, subst_qual_term subst t2, subst_qual_ty subst ty)
   | DInjL (t, ty) -> DInjL (subst_qual_term subst t, subst_qual_ty subst ty)
   | DInjR (t, ty) -> DInjR (subst_qual_term subst t, subst_qual_ty subst ty)
-  | DMatch (t1, (id2, t2), (id3, t3), ty) -> raise NotImplemented
-  | DLetRec (id1, id2, t1, t2, ty) -> raise NotImplemented
+  | DMatch (t1, (id2, t2), (id3, t3), ty) ->
+      DMatch (subst_qual_term subst t1, (id2, subst_qual_term subst t2), (id3, subst_qual_term subst t3), subst_qual_ty subst ty)
+  | DLetRec (f, t1, t2, ty) ->
+      DLetRec (f, subst_qual_term subst t1, subst_qual_term subst t2, subst_qual_ty subst ty)
 
 let merge_subst s1 s2 =
   Subst.fold s1 ~init:s2
@@ -286,7 +284,7 @@ let rec subtyping subst rels =
           let subst = subty_qual subst q1 q2 in
           let rels = (ty11, ty21) :: (ty12, ty22) :: tl in
           subtyping subst rels
-      | _ -> failwith "Fatal error"
+      | _ -> failwith "subtyping: Fatal error"
 
 (*
  * @return (subst, subty_rels, dterm)
@@ -314,7 +312,7 @@ let rec dterm_of_iterm qenv = function
            let s = fix_qual s (get_qual ty1) Linear in
            let s = fix_nonlinear_ids s qenv t1 t2 in
            s, rels1 @ rels2, DApp (dt1, dt2, subst_qual_ty s tybody)
-       | _ -> failwith "Fatal error")
+       | _ -> failwith "dterm_of_iterm:IApp: Fatal error")
   | IPair (t1, t2, _) ->
       let s1, rels1, dt1 = dterm_of_iterm qenv t1 in
       let s2, rels2, dt2 = dterm_of_iterm qenv t2 in
@@ -337,7 +335,7 @@ let rec dterm_of_iterm qenv = function
                             let q = get_qual (Environment.lookup qenv id) in
                             fix_qual s q NonLinear) in
             s, rels1 @ rels2, DLet (x, y, dt1, dt2, subst_qual_ty s (get_type dt2))
-       | _ -> failwith "Fatal error"
+       | _ -> failwith "dterm_of_iterm:ILet: Fatal error"
 )
   | IInjL (t, ty) ->
       let s, rels, dt = dterm_of_iterm qenv t in
@@ -346,7 +344,7 @@ let rec dterm_of_iterm qenv = function
          ITySum (_, ty2) ->
            let ty2 = add_qualifier ty2 in
            s, rels, DInjL (dt, TySum (QVar (fresh_qvar ()), ty1, ty2))
-       | _ -> failwith "Fatal error")
+       | _ -> failwith "dterm_of_iterm:IInjL: Fatal error")
   | IInjR (t, ty) ->
       let s, rels, dt = dterm_of_iterm qenv t in
       let ty2 = get_type dt in
@@ -354,9 +352,23 @@ let rec dterm_of_iterm qenv = function
          ITySum (ty1, _) ->
            let ty1 = add_qualifier ty1 in
            s, rels, DInjR (dt, TySum (QVar (fresh_qvar ()), ty1, ty2))
-       | _ -> failwith "Fatal error")
-  | IMatch _ -> raise NotImplemented
-  | ILetRec _ -> raise NotImplemented (* todo : back patch *)
+       | _ -> failwith "dterm_of_iterm:IInjR: Fatal error")
+  | IMatch (t1, (x, t2), (y, t3), _) ->
+      let s1, rels1, dt1 = dterm_of_iterm qenv t1 in
+      let s2, rels2, dt2 = dterm_of_iterm (Environment.extend qenv x (get_type dt1)) t2 in
+      let s3, rels3, dt3 = dterm_of_iterm (Environment.extend qenv y (get_type dt1)) t3 in
+      let s = unify (merge_subst (merge_subst s1 s2) s3) [get_type dt2, get_type dt3] in
+      s, rels1 @ rels2 @ rels3, DMatch (dt1, (x, dt2), (y, dt3), subst_qual_ty s (get_type dt2))
+  | ILetRec (f, t1, t2, ty) ->
+      (match t1 with
+         IAbst (_, _, ITyFun (tyarg, tybody)) ->
+           let tyf = TyFun (NonLinear, add_qualifier tyarg, add_qualifier tybody) in
+           let qenv = Environment.extend qenv f tyf in
+           let s1, rels1, dt1 = dterm_of_iterm qenv t1 in
+           let s2, rels2, dt2 = dterm_of_iterm qenv t2 in
+           let s = unify (merge_subst s1 s2) [tyf, get_type dt1] in
+           s, rels1 @ rels2, DLetRec (f, subst_qual_term s dt1, subst_qual_term s dt2, subst_qual_ty s (get_type dt2))
+       | _ -> failwith "dterm_of_iterm:ILetRec: Fatal error")
   | _ -> failwith "Fatal error"
 
 let rec check_abst_qual subst qenv t = match t with
@@ -402,8 +414,8 @@ let rec subst_linear_term = function
   | DLet (x, y, t1, t2, ty) -> DLet (x, y, subst_linear_term t1, subst_linear_term t2, subst_linear_ty ty)
   | DInjL (t, ty) -> DInjL (subst_linear_term t, subst_linear_ty ty)
   | DInjR (t, ty) -> DInjR (subst_linear_term t, subst_linear_ty ty)
-  | DMatch (t1, (id2, t2), (id3, t3), ty) -> raise NotImplemented
-  | DLetRec (id1, id2, t1, t2, ty) -> raise NotImplemented
+  | DMatch (t1, (x, t2), (y, t3), ty) -> DMatch (subst_linear_term t1, (x, subst_linear_term t2), (y, subst_linear_term t3), subst_linear_ty ty)
+  | DLetRec (f, t1, t2, ty) -> DLetRec (f, subst_linear_term t1, subst_linear_term t2, subst_linear_ty ty)
 
 
 let bit_ty = TySum (Linear, TySingleton Linear, TySingleton Linear)
@@ -417,5 +429,3 @@ let ty_dterm iterm =
   let s = check_abst_qual s Environment.empty dterm in
   let s = subtyping s rels in
   subst_linear_term (subst_qual_term s dterm)
-
-

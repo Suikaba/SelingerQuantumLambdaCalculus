@@ -106,8 +106,11 @@ let rec eval_term env (states, qs, term) = match term with
            let env = Environment.extend env y v in
            eval_term env (states, qs, t3)
        | _ -> raise EvalMatchingError)
-  | LetRec (id, x, t1, t2) ->
+  | LetRec (f, t1, t2) ->
       let dummy = ref Environment.empty in
-      let env = Environment.extend env id (VAbst (x, t1, dummy)) in
-      dummy := env;
-      eval_term env (states, qs, t2)
+      (match t1 with
+         Abst (x, body) ->
+           let env = Environment.extend env f (VAbst (x, body, dummy)) in
+           dummy := env;
+           eval_term env (states, qs, t2)
+       | _ -> failwith "Fatal error")

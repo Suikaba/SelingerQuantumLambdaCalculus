@@ -33,7 +33,7 @@ LetExpr :
   | LET LPAREN x=ID COMMA y=ID RPAREN EQ e1=Expr IN e2=Expr { Let (x, y, e1, e2) }
   | LET x=ID EQ e1=Expr IN e2=Expr { App (Abst (x, e2), e1) }
   | LET ASTER EQ e1=Expr IN e2=Expr { App (Abst (fresh_var (), e2), e1) }
-  | LET REC f=ID x=ID e1=LetFunArgsAndBody IN e2=Expr { LetRec (f, x, e1, e2) }
+  | LET REC f=ID e1=LetFunArgsAndBody IN e2=Expr { LetRec (f, e1, e2) }
 
 LetFunArgsAndBody :
   | x=ID EQ e=Expr { Abst (x, e) }

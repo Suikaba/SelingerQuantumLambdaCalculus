@@ -1,0 +1,5 @@
+let p = new 0 in
+let c = fun * -> meas (H (new 0)) in
+let rec f x = (if (c *) then H (f x) else x)
+in f p
+;;

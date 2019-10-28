@@ -17,7 +17,7 @@ type term =
   | InjL of term
   | InjR of term
   | Match of term * (id * term) * (id * term)
-  | LetRec of id * id * term * term
+  | LetRec of id * term * term
 
 type value =
   | Qbit of int (* quantum closure label *)
@@ -94,8 +94,8 @@ let rec string_of_term = function
   | Match (t, (x, t2), (y, t3)) ->
       Printf.sprintf "match %s with %s -> %s | %s -> %s"
                      (string_of_term t) x (string_of_term t2) y (string_of_term t3)
-  | LetRec (id, para, t1, t2) ->
-      Printf.sprintf "let rec %s %s = %s in %s" id para (string_of_term t1) (string_of_term t2)
+  | LetRec (f, t1, t2) ->
+      Printf.sprintf "let rec %s = %s in %s" f (string_of_term t1) (string_of_term t2)
 
 let rec string_of_value = function
     Qbit i -> Printf.sprintf "|q%d>" i
