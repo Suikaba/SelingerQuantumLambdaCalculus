@@ -25,24 +25,35 @@ toplevel :
 Expr :
   | e=LetExpr { e }
   | e=FunExpr { e }
-  | e=PairExpr { e }
+  | e=IfExpr { e }
+  | e=MatchExpr { e }
 
 LetExpr :
-  | LET f=ID e=FunArgsAndBody IN e2=Expr { App (Abst (f, e2), e) }
+  | LET f=ID e=LetFunArgsAndBody IN e2=Expr { App (Abst (f, e2), e) }
   | LET LPAREN x=ID COMMA y=ID RPAREN EQ e1=Expr IN e2=Expr { Let (x, y, e1, e2) }
   | LET x=ID EQ e1=Expr IN e2=Expr { App (Abst (x, e2), e1) }
+  | LET ASTER EQ e1=Expr IN e2=Expr { App (Abst (fresh_var (), e2), e1) }
+  | LET REC f=ID x=ID e1=LetFunArgsAndBody IN e2=Expr { LetRec (f, x, e1, e2) }
 
-FunArgsAndBody :
+LetFunArgsAndBody :
   | x=ID EQ e=Expr { Abst (x, e) }
-  | x=ID e=FunArgsAndBody { Abst (x, e) }
+  | x=ID e=LetFunArgsAndBody { Abst (x, e) }
 
 FunExpr :
-  | FUN x=ID RARROW e=Expr { Abst (x, e) }
+  | FUN e=FunArgsAndBody { e }
+  | FUN ASTER RARROW e=Expr { Abst ("_z", e) }
   | FUN LPAREN x=ID COMMA y=ID RPAREN RARROW e=Expr { Abst ("_z", Let (x, y, Var "_z", e)) }
+FunArgsAndBody :
+  | x=ID RARROW e=Expr { Abst (x, e) }
+  | x=ID e=FunArgsAndBody { Abst (x, e) }
 
-PairExpr :
+IfExpr :
+  | IF e1=Expr THEN e2=Expr ELSE e3=Expr { Match (e1, (fresh_var (), e2), (fresh_var (), e3)) }
+  | e=TupleExpr { e }
+
+TupleExpr :
   | e=AppExpr { e }
-  | e1=AppExpr COMMA e2=AppExpr { Pair (e1, e2) }
+  | e1=TupleExpr COMMA e2=AppExpr { Pair (e1, e2) }
 
 AppExpr :
   | e1=AppExpr e2=AExpr { App (e1, e2) }
@@ -56,3 +67,6 @@ AExpr :
   | INJL LPAREN e=Expr RPAREN { InjL e }
   | INJR LPAREN e=Expr RPAREN { InjR e }
   | LPAREN e=Expr RPAREN { e }
+
+MatchExpr :
+  | MATCH e1=Expr WITH x=ID RARROW e2=Expr BAR y=ID RARROW e3=Expr { Match (e1, (x, e2), (y, e3)) }

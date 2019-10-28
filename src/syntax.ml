@@ -165,3 +165,9 @@ let rec string_of_dtype ty =
         add_qual q (Printf.sprintf "(%s) + %s" (string_of_dtype ty1) (string_of_dtype ty2))
       else
         add_qual q (Printf.sprintf "%s + %s" (string_of_dtype ty1) (string_of_dtype ty2))
+
+(* helper for parser *)
+let fresh_var =
+  let counter = ref 0 in
+  let body () = counter := !counter + 1; Printf.sprintf "_x%d" !counter in
+  body
