@@ -30,14 +30,14 @@ let apply_const c (states, qs, v) = match c, v with
       let alpha =
         Array.foldi ~init:0. states
           ~f:(fun idx a b ->
-                if idx land (1 lsl i) = 0 then a +. b
+                if idx land (1 lsl i) = 0 then a +. (b *. b)
                 else a) in
       let r = Random.float 1. in
-      if alpha *. alpha <=. r then begin
+      if alpha >=. r then begin
         let states =
           Array.mapi states
             ~f:(fun idx a ->
-                  if idx land (1 lsl i) = 0 then a /. alpha
+                  if idx land (1 lsl i) = 0 then a /. Float.sqrt(alpha)
                   else 0.)
         in
         states, qs, VInjR VTuple0
@@ -46,7 +46,7 @@ let apply_const c (states, qs, v) = match c, v with
         let states =
           Array.mapi states
             ~f:(fun idx a ->
-                  if idx land (1 lsl i) = 0 then a /. beta
+                  if idx land (1 lsl i) <> 0 then a /. Float.sqrt(beta)
                   else 0.)
         in
         states, qs, VInjL VTuple0
@@ -71,6 +71,12 @@ let apply_const c (states, qs, v) = match c, v with
                 else a)
       in
       states, qs, VPair (Qbit q0, Qbit q1)
+  | X, Qbit i ->
+      let states = Array.mapi states ~f:(fun idx _ -> Array.get states (idx lxor (1 lsl i))) in
+      states, qs, Qbit i
+  | Z, Qbit i ->
+      let states = Array.mapi states ~f:(fun idx a -> if idx land (1 lsl i) = 0 then a else -.a) in
+      states, qs, Qbit i
   | _ -> raise ApplyConstError
 
 let rec eval_term env (states, qs, term) = match term with

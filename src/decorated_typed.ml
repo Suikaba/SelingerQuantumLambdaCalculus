@@ -32,7 +32,7 @@ type dtyped_term =
   | DMatch of dtyped_term * (id * dtyped_term) * (id * dtyped_term) * dtype
   | DLetRec of id * dtyped_term * dtyped_term * dtype
 
-let const_strs = ["new"; "meas"; "H"; "cnot"]
+let const_strs = ["new"; "meas"; "H"; "cnot"; "X"; "Y"; "Z"]
 
 (* =============================================================================
  * Print
@@ -430,8 +430,11 @@ let new_ty = TyFun (Linear, bit_ty, TyQBit)
 let meas_ty = TyFun (Linear, TyQBit, bit_ty)
 let h_ty = TyFun (Linear, TyQBit, TyQBit)
 let cnot_ty = TyFun (Linear, TyProd (Linear, TyQBit, TyQBit), TyProd (Linear, TyQBit, TyQBit))
+let x_ty = TyFun (Linear, TyQBit, TyQBit)
+let z_ty = TyFun (Linear, TyQBit, TyQBit)
 let initial_qenv =
-  List.fold [("new", new_ty); ("meas", meas_ty); ("H", h_ty); ("cnot", cnot_ty)] ~init:Environment.empty
+  List.fold [("new", new_ty); ("meas", meas_ty); ("H", h_ty); ("cnot", cnot_ty); ("X", x_ty); ("Z", z_ty)]
+    ~init:Environment.empty
     ~f:(fun env (id, ty) -> Environment.extend env id ty)
 
 let ty_dterm iterm =
