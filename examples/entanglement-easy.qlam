@@ -1,0 +1,5 @@
+let (q1, q2) = (new 0, new 0) in
+let q1 = H q1 in
+let (q1, q2) = cnot (q1, q2) in
+(q1, q2)
+;;

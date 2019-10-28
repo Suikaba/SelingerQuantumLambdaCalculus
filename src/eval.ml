@@ -63,6 +63,14 @@ let apply_const c (states, qs, v) = match c, v with
                   let b = Array.get states idx' in
                   (b -. a) /. Float.sqrt(2.))
       in states, qs, Qbit i
+  | CNOT, VPair (Qbit q0, Qbit q1) ->
+      let states =
+        Array.mapi states
+          ~f:(fun idx a ->
+                if idx land (1 lsl q0) <> 0 then Array.get states (idx lxor (1 lsl q1))
+                else a)
+      in
+      states, qs, VPair (Qbit q0, Qbit q1)
   | _ -> raise ApplyConstError
 
 let rec eval_term env (states, qs, term) = match term with

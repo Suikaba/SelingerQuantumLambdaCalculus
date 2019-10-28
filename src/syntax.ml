@@ -4,7 +4,7 @@ type id = string
 type constant =
    | New
    | Meas
-   | H | X | Y | Z
+   | H | CNOT | X | Y | Z
 
 type term =
     Const of constant
@@ -67,6 +67,7 @@ let string_of_const = function
     New -> "new"
   | Meas -> "meas"
   | H -> "H"
+  | CNOT -> "cnot"
   | X -> "X"
   | Y -> "Y"
   | Z -> "Z"

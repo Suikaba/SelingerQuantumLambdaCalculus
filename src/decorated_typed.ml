@@ -329,7 +329,7 @@ let rec dterm_of_iterm qenv = function
             let qenv = Environment.extend (Environment.extend qenv x xty) y yty in
             let s2, rels2, dt2 = dterm_of_iterm qenv t2 in
             let s = merge_subst s1 s2 in
-            let nonlin_ids = SS.diff (SS.inter (free_variables t1) (free_variables t2)) (SS.inter (SS.singleton x) (SS.singleton y)) in
+            let nonlin_ids = SS.diff (SS.inter (free_variables t1) (free_variables t2)) (SS.of_list [x; y]) in
             let s = SS.fold ~init:s nonlin_ids
                       ~f:(fun s id ->
                             let q = get_qual (Environment.lookup qenv id) in
@@ -422,7 +422,10 @@ let bit_ty = TySum (Linear, TySingleton Linear, TySingleton Linear)
 let new_ty = TyFun (Linear, bit_ty, TyQBit)
 let meas_ty = TyFun (Linear, TyQBit, bit_ty)
 let h_ty = TyFun (Linear, TyQBit, TyQBit)
-let initial_qenv = Environment.extend (Environment.extend (Environment.extend Environment.empty "new" new_ty) "meas" meas_ty) "H" h_ty
+let cnot_ty = TyFun (Linear, TyProd (Linear, TyQBit, TyQBit), TyProd (Linear, TyQBit, TyQBit))
+let initial_qenv =
+  List.fold [("new", new_ty); ("meas", meas_ty); ("H", h_ty); ("cnot", cnot_ty)] ~init:Environment.empty
+    ~f:(fun env (id, ty) -> Environment.extend env id ty)
 
 let ty_dterm iterm =
   let s, rels, dterm = dterm_of_iterm initial_qenv iterm in
