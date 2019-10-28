@@ -109,37 +109,47 @@ let rec string_of_value = function
 
 
 let rec string_of_itype ty =
-  let need_paren = (function
-    | ITyFun _
-    | ITyProd _
-    | ITySum _ -> true
+  let is_bit = (function
+      ITySum (ITySingleton, ITySingleton) -> true
     | _ -> false) in
   match ty with
     ITyQbit -> "qbit"
   | ITySingleton -> "T"
   | ITyVar v -> Printf.sprintf "v%d" v
   | ITyFun (ty1, ty2) ->
-      if need_paren ty1 then
-        Printf.sprintf "(%s) -> %s" (string_of_itype ty1) (string_of_itype ty2)
-      else
-        Printf.sprintf "%s -> %s" (string_of_itype ty1) (string_of_itype ty2)
+      let s1, s2 = string_of_itype ty1, string_of_itype ty2 in
+      (match ty1, ty2 with
+         ITyFun _, ITyFun _ -> Printf.sprintf "(%s) -> (%s)" s1 s2
+       | ITyFun _, _ -> Printf.sprintf "(%s) -> %s" s1 s2
+       | _, ITyFun _ -> Printf.sprintf "%s -> (%s)" s1 s2
+       | _ -> Printf.sprintf "%s -> %s" s1 s2)
   | ITyProd (ty1, ty2) ->
-      if need_paren ty1 then
-        Printf.sprintf "(%s) * %s" (string_of_itype ty1) (string_of_itype ty2)
-      else
-        Printf.sprintf "%s * %s" (string_of_itype ty1) (string_of_itype ty2)
+      let s1, s2 = string_of_itype ty1, string_of_itype ty2 in
+      let s1 = (match ty1 with
+          ITyFun _ -> Printf.sprintf "(%s)" s1
+        | ITySum _ when not (is_bit ty1) -> Printf.sprintf "(%s)" s1
+        | _ -> s1) in
+      let s2 = (match ty2 with
+          ITyFun _ | ITyProd _ -> Printf.sprintf "(%s)" s2
+        | ITySum _ when not (is_bit ty2) -> Printf.sprintf "(%s)" s2
+        | _ -> s2) in
+      Printf.sprintf "%s * %s" s1 s2
+  | ITySum (ITySingleton, ITySingleton) -> "bit"
   | ITySum (ty1, ty2) ->
-      if need_paren ty1 then
-        Printf.sprintf "(%s) + %s" (string_of_itype ty1) (string_of_itype ty2)
-      else
-        Printf.sprintf "%s + %s" (string_of_itype ty1) (string_of_itype ty2)
+      let s1, s2 = string_of_itype ty1, string_of_itype ty2 in
+      let s1 = (match ty1 with
+          ITyFun _ | ITyProd _ -> Printf.sprintf "(%s)" s1
+        | _ -> s1) in
+      let s2 = (match ty2 with
+          ITyFun _ | ITyProd _ -> Printf.sprintf "(%s)" s2
+        | ITySum _ when not (is_bit ty2) -> Printf.sprintf "(%s)" s2
+        | _ -> s2) in
+      Printf.sprintf "%s * %s" s1 s2
 
 
 let rec string_of_dtype ty =
-  let need_paren = (function
-    | TyFun _
-    | TyProd _
-    | TySum _ -> true
+  let is_bit = (function
+      TySum (_, TySingleton _, TySingleton _) -> true
     | _ -> false) in
   let add_qual q s = (match q with
       NonLinear -> "!(" ^ s ^ ")"
@@ -152,20 +162,38 @@ let rec string_of_dtype ty =
       | Linear -> "T"
       | QVar _ -> "?T")
   | TyFun (q, ty1, ty2) ->
-      if need_paren ty1 then
-        add_qual q (Printf.sprintf "(%s) -> %s" (string_of_dtype ty1) (string_of_dtype ty2))
-      else
-        add_qual q (Printf.sprintf "%s -> %s" (string_of_dtype ty1) (string_of_dtype ty2))
+      let s1, s2 = string_of_dtype ty1, string_of_dtype ty2 in
+      let str =
+        (match ty1, ty2 with
+           TyFun _, TyFun _ -> Printf.sprintf "(%s) -> (%s)" s1 s2
+         | TyFun _, _ -> Printf.sprintf "(%s) -> %s" s1 s2
+         | _, TyFun _ -> Printf.sprintf "%s -> (%s)" s1 s2
+         | _ -> Printf.sprintf "%s -> %s" s1 s2)
+      in
+      add_qual q str
   | TyProd (q, ty1, ty2) ->
-      if need_paren ty1 then
-        add_qual q (Printf.sprintf "(%s) * %s" (string_of_dtype ty1) (string_of_dtype ty2))
-      else
-        add_qual q (Printf.sprintf "%s * %s" (string_of_dtype ty1) (string_of_dtype ty2))
+      let s1, s2 = string_of_dtype ty1, string_of_dtype ty2 in
+      let s1 = (match ty1 with
+          TyFun _ -> "(" ^ s1 ^ ")"
+        | TySum _ when not (is_bit ty1) -> "(" ^ s1 ^ ")"
+        | _ -> s1) in
+      let s2 = (match ty2 with
+          TyFun _ | TyProd _ -> "(" ^ s2 ^ ")"
+        | TySum _ when not (is_bit ty2) -> "(" ^ s2 ^ ")"
+        | _ -> s2) in
+      add_qual q (Printf.sprintf "%s * %s" s1 s2)
+  | TySum (Linear, TySingleton Linear, TySingleton Linear) -> "bit"
+  | TySum (NonLinear, TySingleton Linear, TySingleton Linear) -> "!bit"
   | TySum (q, ty1, ty2) ->
-      if need_paren ty1 then
-        add_qual q (Printf.sprintf "(%s) + %s" (string_of_dtype ty1) (string_of_dtype ty2))
-      else
-        add_qual q (Printf.sprintf "%s + %s" (string_of_dtype ty1) (string_of_dtype ty2))
+      let s1, s2 = string_of_dtype ty1, string_of_dtype ty2 in
+      let s1 = (match ty1 with
+          TyFun _ | TyProd _ -> "(" ^ s1 ^ ")"
+        | _ -> s1) in
+      let s2 = (match ty2 with
+          TyFun _ | TyProd _ -> "(" ^ s2 ^ ")"
+        | TySum _ when not (is_bit ty2) -> "(" ^ s2 ^ ")"
+        | _ -> s2) in
+      add_qual q (Printf.sprintf "%s + %s" s1 s2)
 
 (* helper for parser *)
 let fresh_var =

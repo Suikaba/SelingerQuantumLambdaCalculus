@@ -32,7 +32,7 @@ type dtyped_term =
   | DMatch of dtyped_term * (id * dtyped_term) * (id * dtyped_term) * dtype
   | DLetRec of id * dtyped_term * dtyped_term * dtype
 
-let const_strs = ["new"; "meas"; "H"]
+let const_strs = ["new"; "meas"; "H"; "cnot"]
 
 (* =============================================================================
  * Print
@@ -361,7 +361,7 @@ let rec dterm_of_iterm qenv = function
       let s3, rels3, dt3 = dterm_of_iterm (Environment.extend qenv y (get_type dt1)) t3 in
       let s = unify (merge_subst (merge_subst s1 s2) s3) [get_type dt2, get_type dt3] in
       s, rels1 @ rels2 @ rels3, DMatch (dt1, (x, dt2), (y, dt3), subst_qual_ty s (get_type dt2))
-  | ILetRec (f, t1, t2, ty) ->
+  | ILetRec (f, t1, t2, _) ->
       (match t1 with
          IAbst (_, _, ITyFun (tyarg, tybody)) ->
            let tyf = TyFun (NonLinear, add_qualifier tyarg, add_qualifier tybody) in
@@ -375,7 +375,7 @@ let rec dterm_of_iterm qenv = function
 
 let rec check_abst_qual subst qenv t = match t with
   | DAbst (id, body, TyFun (q, tyarg, _)) ->
-      let fvs = SS.diff (free_variables_d body) (SS.of_list ["new"; "meas"; "H"; id]) in
+      let fvs = SS.diff (free_variables_d body) (SS.of_list (id :: const_strs)) in
       let qfvs = SS.to_list fvs |> List.map ~f:(fun id -> Environment.lookup qenv id) in
       let have_lin = List.exists qfvs ~f:(fun q -> q = Linear) in
       let subst = if have_lin then fix_qual subst q Linear else subst in
