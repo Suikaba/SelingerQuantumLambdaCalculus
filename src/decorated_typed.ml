@@ -373,7 +373,7 @@ let rec dterm_of_iterm qenv = function
        | _ -> failwith "dterm_of_iterm:ILetRec: Fatal error")
   | _ -> failwith "Fatal error"
 
-let rec check_abst_qual subst qenv t = match t with
+let rec check_abst_pair_sum subst qenv t = match t with
   | DAbst (id, body, TyFun (q, tyarg, _)) ->
       let fvs = SS.diff (free_variables_d body) (SS.of_list (id :: const_strs)) in
       let qfvs = SS.to_list fvs |> List.map ~f:(fun id -> Environment.lookup qenv id) in
@@ -383,12 +383,17 @@ let rec check_abst_qual subst qenv t = match t with
                     List.fold ~init:subst qfvs ~f:(fun s q -> fix_qual s q NonLinear)
                   else subst in
       let qenv = Environment.extend qenv id (get_qual tyarg) in
-      check_abst_qual subst qenv body
-  | DApp (t1, t2, _)
-  | DPair (t1, t2, _) ->
-      let s = check_abst_qual subst qenv t1 in
-      check_abst_qual s qenv t2
-  | DInjL (t, _) | DInjR (t, _) -> check_abst_qual subst qenv t
+      check_abst_pair_sum subst qenv body
+  | DApp (t1, t2, _) ->
+      check_abst_pair_sum (check_abst_pair_sum subst qenv t1) qenv t2
+  | DPair (t1, t2, TyProd (q, _, _)) ->
+      let s = check_abst_pair_sum subst qenv t1 in
+      let s = check_abst_pair_sum s qenv t2 in
+      let q1, q2 = subst_qual s (get_qual (get_type t1)), subst_qual s (get_qual (get_type t2)) in
+      (match q1, q2 with
+         NonLinear, _ | _, NonLinear -> fix_qual s q NonLinear
+       | _ -> s)
+  | DInjL (t, _) | DInjR (t, _) -> check_abst_pair_sum subst qenv t
   | _ -> subst
 
 (* -----------------------------------------------------------------------------
@@ -431,6 +436,6 @@ let initial_qenv =
 
 let ty_dterm iterm =
   let s, rels, dterm = dterm_of_iterm initial_qenv iterm in
-  let s = check_abst_qual s Environment.empty dterm in
+  let s = check_abst_pair_sum s Environment.empty dterm in
   let s = subtyping s rels in
   subst_linear_term (subst_qual_term s dterm)
