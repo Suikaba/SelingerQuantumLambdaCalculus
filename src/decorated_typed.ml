@@ -134,21 +134,23 @@ let extend_subst s qv =
 
 let rec unify subst eqs =
   let merge_qual q1 q2 = (match q1, q2 with
-      Linear, Linear | NonLinear, NonLinear -> ()
+      Linear, Linear | NonLinear, NonLinear -> subst
     | QVar v, Linear | Linear, QVar v ->
         let subst = extend_subst subst v in
         let t = Subst.find_exn subst v in
         (match UF.get t with
            Linear -> ()
          | NonLinear -> raise QualMismatch
-         | QVar _ -> UF.set t Linear)
+         | QVar _ -> UF.set t Linear);
+        subst
     | QVar v, NonLinear | NonLinear, QVar v ->
         let subst = extend_subst subst v in
         let t = Subst.find_exn subst v in
         (match UF.get t with
            Linear -> raise QualMismatch
          | NonLinear -> ()
-         | QVar _ -> UF.set t NonLinear)
+         | QVar _ -> UF.set t NonLinear);
+        subst
     | QVar v1, QVar v2 ->
         let subst = extend_subst (extend_subst subst v1) v2 in
         let t1 = Subst.find_exn subst v1 in
@@ -158,9 +160,9 @@ let rec unify subst eqs =
         UF.union t1 t2;
         (match q1, q2 with
            Linear, NonLinear -> raise QualMismatch
-         | Linear, _ | _, Linear -> UF.set t1 Linear
-         | NonLinear, _ | _, NonLinear -> UF.set t1 NonLinear
-         | QVar _, QVar _ -> ())
+         | Linear, _ | _, Linear -> UF.set t1 Linear; subst
+         | NonLinear, _ | _, NonLinear -> UF.set t1 NonLinear; subst
+         | QVar _, QVar _ -> subst)
     | _ -> raise QualMismatch)
   in
   match eqs with
@@ -169,12 +171,12 @@ let rec unify subst eqs =
       match ty1, ty2 with
         TyQBit, TyQBit -> unify subst tl
       | TySingleton q1, TySingleton q2 ->
-          merge_qual q1 q2;
+          let subst = merge_qual q1 q2 in
           unify subst tl
       | TyFun (q1, ty11, ty12), TyFun (q2, ty21, ty22)
       | TyProd (q1, ty11, ty12), TyProd (q2, ty21, ty22)
       | TySum (q1, ty11, ty12), TySum (q2, ty21, ty22) ->
-          merge_qual q1 q2;
+          let subst = merge_qual q1 q2 in
           unify subst ((ty11, ty21) :: (ty12, ty22) :: tl)
       | _ -> failwith "unify: Fatal error"
 
