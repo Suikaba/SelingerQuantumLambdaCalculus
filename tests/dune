@@ -1,5 +1,7 @@
 (tests
   (libraries qlambda oUnit)
   (names prim
+         eval
+         typing
   )
 )

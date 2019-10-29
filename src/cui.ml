@@ -46,6 +46,6 @@ let read_string_eval str env tyenv =
   let t = Parser.toplevel Lexer.main (Lexing.from_string str) in
   let ityped_t = ity_term tyenv t in
   let dtyped_t = ty_dterm ityped_t in
-  let _, _, v = eval_term env (Array.create ~len:0 0., 0, t) in
-  ityped_t, dtyped_t, v
+  let qc = eval_term env (Array.create ~len:0 0., 0, t) in
+  ityped_t, dtyped_t, qc
 
